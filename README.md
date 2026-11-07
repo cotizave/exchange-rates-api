@@ -16,7 +16,7 @@ Venezuela's **BCV** — across 22 countries.
 [![CI](https://github.com/cotizave/cotizave-typescript/actions/workflows/ci.yml/badge.svg)](https://github.com/cotizave/cotizave-typescript/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-[Documentation](https://docs.cotizave.com) · [API reference](https://docs.cotizave.com/api/v2/introduction) · [Get an API key](https://app.cotizave.com) · [Website](https://cotizave.com)
+[Documentation](https://docs.cotizave.com) · [API reference](https://docs.cotizave.com/api/v2/introduction) · [Get an API key](https://app.cotizave.com) · [Website](https://global.cotizave.com)
 
 </div>
 

@@ -16,7 +16,7 @@ y Chile, y el **dólar BCV** de Venezuela — en 22 países.
 [![CI](https://github.com/cotizave/cotizave-typescript/actions/workflows/ci.yml/badge.svg)](https://github.com/cotizave/cotizave-typescript/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-[Documentación](https://docs.cotizave.com) · [Referencia de la API](https://docs.cotizave.com/api/v2/introduction) · [Obtené una API key](https://app.cotizave.com) · [Web](https://cotizave.com)
+[Documentación](https://docs.cotizave.com) · [Referencia de la API](https://docs.cotizave.com/api/v2/introduction) · [Obtené una API key](https://app.cotizave.com) · [Web](https://global.cotizave.com)
 
 </div>
 
