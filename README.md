@@ -48,9 +48,9 @@ Rates are identified by a stable, canonical id. A few widely-used ones:
 | Chile | Official (USD) | `cl-official` |
 | Venezuela | BCV official (USD) | `ve-bcv` |
 
-Official and market rates are available across **22 countries** in the Americas and
-Europe. Get the live, complete list from `GET /v2/countries`, and a country's full
-catalog from `GET /v2/fx/{cc}/markets`.
+Official and market rates are available across **22 countries** in Latin America,
+North America and Europe. Get the live, complete list from `GET /v2/countries`, and
+a country's full catalog from `GET /v2/fx/{cc}/markets`.
 
 ## Quick start — no SDK
 

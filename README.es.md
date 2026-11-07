@@ -48,9 +48,9 @@ Cada tasa se identifica con un id canónico estable. Algunas muy usadas:
 | Chile | Oficial (USD) | `cl-official` |
 | Venezuela | Dólar BCV oficial (USD) | `ve-bcv` |
 
-Hay tasas oficiales y de mercado en **22 países** de América y Europa. La lista
-completa y actualizada sale de `GET /v2/countries`, y el catálogo de un país de
-`GET /v2/fx/{cc}/markets`.
+Hay tasas oficiales y de mercado en **22 países** de América Latina, Norteamérica y
+Europa. La lista completa y actualizada sale de `GET /v2/countries`, y el catálogo
+de un país de `GET /v2/fx/{cc}/markets`.
 
 ## Inicio rápido — sin SDK
 
