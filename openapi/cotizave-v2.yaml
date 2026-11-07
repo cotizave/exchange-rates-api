@@ -1,0 +1,1108 @@
+openapi: 3.1.0
+info:
+  title: Cotizave API v2
+  version: 2.0.0-alpha
+  description: |
+    Cotizave API v2, organized by domain (fx, banks, holidays, countries,
+    currencies, crypto, issuers). Anything not described here is not implemented.
+
+    - Prices: JSON numbers. A side with no data is `null`, never 0.
+    - Errors: `{code, message, field?, details?}`, always JSON (even when CSV or
+      XML was requested).
+    - Unknown parameters: `400 unknown_parameter`.
+    - Repeated query parameters: `400 invalid_format` with the repeated field.
+    - Formats: `?format=json|csv|xml` or `Accept` (CSV/XML from Growth; 402 on Free and Basic).
+    - Quota and rate limits are shared across API versions (one counter per account).
+servers:
+  - url: https://api.cotizave.com
+security:
+  - ApiKey: []
+tags:
+  - name: fx
+  - name: banks
+  - name: holidays
+  - name: countries
+  - name: currencies
+  - name: crypto
+  - name: issuers
+paths:
+  /v2/fx/rates:
+    get:
+      tags: [fx]
+      summary: The official rate of every published country in a single call.
+      description: |
+        `?symbols=BRL,EUR` filters currencies (all plans). `?base=EUR` changes
+        the base (paid plans only; 402 on Free).
+      parameters:
+        - {name: symbols, in: query, schema: {type: string}, description: 'Comma-separated ISO 4217 currencies.'}
+        - {name: base, in: query, schema: {type: string, pattern: '^[A-Za-z]{3}$'}, description: 'Base currency (paid plans only). Defaults to USD.'}
+        - $ref: '#/components/parameters/format'
+      responses:
+        '200':
+          description: The official rate of each published country
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GlobalRatesList'}
+        '400': {$ref: '#/components/responses/Error'}
+        '402': {$ref: '#/components/responses/Error'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+  /v2/fx/historical-limits:
+    get:
+      tags: [fx]
+      summary: History coverage (first/last date) of every rate the plan can see.
+      description: |
+        With an API key it counts against quota and returns the coverage of every
+        rate visible to the plan (not only the official one). An account with no
+        rates that have history receives 200 with an empty `limits`. The public, officials-only variant lives at
+        `/v2/public/historical-limits`.
+      parameters: [{$ref: '#/components/parameters/format'}]
+      responses:
+        '200':
+          description: Coverage
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HistoricalLimitsResponse'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+  /v2/issuers:
+    get:
+      tags: [issuers]
+      summary: Directory of the institutions that issue official rates. All plans.
+      description: |
+        Fixed reference data (provenance): who issues each official rate of the
+        published countries and which rates they publish. No prices or history.
+      parameters: [{$ref: '#/components/parameters/format'}]
+      responses:
+        '200':
+          description: Directory
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IssuersResponse'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+  /v2/public/issuers:
+    get:
+      tags: [issuers]
+      summary: Reduced issuers directory, no API key required (edge-cached).
+      description: 'No key, no quota, JSON only, no parameters. A subset of /v2/issuers (id, names, kind, countries and the name of each rate).'
+      security: []
+      responses:
+        '200':
+          description: Reduced directory
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/IssuersResponse'}
+        '503': {$ref: '#/components/responses/Error'}
+  /v2/public/historical-limits:
+    get:
+      tags: [fx]
+      summary: History coverage of the official rates, no API key required (edge-cached).
+      description: 'No key, no quota, JSON only, no parameters. Only the official rate of each country.'
+      security: []
+      responses:
+        '200':
+          description: Coverage (official rates only)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HistoricalLimitsResponse'}
+        '503': {$ref: '#/components/responses/Error'}
+  /v2/fx/{cc}/rates:
+    get:
+      tags: [fx]
+      summary: All rates of a country
+      description: |
+        In Venezuela, plan-restricted rates appear as a descriptor
+        without a price. Free receives the v1 fields plus `id`; Basic adds
+        `name`, `quote`, `stale`, `staleness_sec` and `available`; Growth and Pro
+        add `description`, `tags`, `change_24h_pct`, `vs_official_pct` and
+        `required_plan`. `stale_after_sec` keeps v1's conditional omission.
+        In AR, CO, PE, MX,
+        AU and ES every published rate includes a price on any plan.
+        SET-FX is disabled in Colombia. In VE, `?markup=tag` keeps
+        the v1 variant for plans with the markups capability.
+      parameters:
+        - $ref: '#/components/parameters/cc'
+        - {name: tag, in: query, schema: {type: string}, description: 'Id, v1 id, or alias (bcv, reference, euro…)'}
+        - {name: category, in: query, schema: {$ref: '#/components/schemas/Category'}, description: 'Legacy v2 filter; keeps the internal category values.'}
+        - {name: base, in: query, schema: {type: string, pattern: '^[A-Za-z]{3}$'}}
+        - {name: quote, in: query, schema: {type: string, pattern: '^[A-Za-z]{3}$'}}
+        - {name: markup, in: query, schema: {type: string}, description: 'User markup rule; VE and authorized plans only.'}
+        - {name: date, in: query, schema: {type: string, format: date}, description: 'Returns the full board as it closed on that day (RatesSnapshotResponse) instead of the live rates. Subject to the history retention of the plan.'}
+        - $ref: '#/components/parameters/format'
+      responses:
+        '200':
+          description: Collection
+          headers:
+            ETag: {schema: {type: string}}
+            Cache-Control: {schema: {type: string, example: 'private, max-age=30'}}
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/RatesResponse'
+                  - $ref: '#/components/schemas/RatesSnapshotResponse'
+              examples:
+                free:
+                  value:
+                    country: VE
+                    currency: VES
+                    base: USD
+                    fetched_at: '2026-10-22T13:05:03Z'
+                    plan: free
+                    index: {value: 290.85, version: v1}
+                    rates:
+                      - {id: ve-bcv, market: reference, type: reference, base: USD, mid: 248.45123456, updated_at: '2026-10-22T04:00:00Z', effective_date: '2026-10-22'}
+                      - {id: ve-binance, market: binance, type: p2p, base: USD, mid: 290.85, bid: 290.4, ask: 291.3, updated_at: '2026-10-22T12:58:40Z'}
+                      - {id: ve-cash}
+        '304': {description: Not Modified (If-None-Match)}
+        '400': {$ref: '#/components/responses/Error'}
+        '401': {$ref: '#/components/responses/Error'}
+        '402': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '503': {$ref: '#/components/responses/Error'}
+  /v2/fx/{cc}/rates/{id}:
+    get:
+      tags: [fx]
+      summary: A single rate by canonical id
+      parameters:
+        - $ref: '#/components/parameters/cc'
+        - $ref: '#/components/parameters/id'
+        - $ref: '#/components/parameters/format'
+      responses:
+        '200':
+          description: Rate with plan-dependent fields; Free keeps the v1 contract plus id.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Rate'}
+        '304': {description: Not Modified}
+        '400': {$ref: '#/components/responses/Error'}
+        '402': {description: 'feature_not_in_plan (details: feature, id, required_plan)', content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+        '404': {description: 'resource_not_found in VE when there is no data, or rate_not_found / country_not_supported', content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '503': {description: 'Registered rate with no data right now', content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /v2/fx/{cc}/rates/{id}/history:
+    get:
+      tags: [fx]
+      summary: History of a rate
+      description: |
+        `?date=` → a single point (the rate in effect that day). Without `date`:
+        `granularity=daily` (default, no pagination) or `raw` (paginated with
+        `cursor`/`limit`; pages move backwards in time and each
+        page is in ascending order). Retention depends on the plan.
+      parameters:
+        - $ref: '#/components/parameters/cc'
+        - $ref: '#/components/parameters/id'
+        - {name: date, in: query, schema: {type: string, format: date}}
+        - {name: from, in: query, schema: {type: string, format: date}}
+        - {name: to, in: query, schema: {type: string, format: date}}
+        - {name: granularity, in: query, schema: {type: string, enum: [daily, raw], default: daily}}
+        - {name: cursor, in: query, schema: {type: string}, description: 'Raw only. Opaque.'}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 5000, default: 1000}, description: 'Raw only.'}
+        - {name: stats, in: query, schema: {type: string, enum: ['1', 'true']}, description: 'Returns the aggregates of the period (HistoryStatsResponse) instead of the points.'}
+        - {name: ma, in: query, schema: {type: integer, minimum: 2, maximum: 365}, description: 'With stats: window of the moving average; adds sma/ema to the aggregates.'}
+        - $ref: '#/components/parameters/format'
+      responses:
+        '200':
+          description: Point or collection
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/HistoryPointResponse'
+                  - $ref: '#/components/schemas/HistoryCollection'
+                  - $ref: '#/components/schemas/HistoryStatsResponse'
+        '400': {$ref: '#/components/responses/Error'}
+        '402': {$ref: '#/components/responses/Error'}
+        '403': {description: history_out_of_retention, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+        '404': {description: 'rate_not_found | history_not_available | no record', content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+        '503': {$ref: '#/components/responses/Error'}
+  /v2/fx/{cc}/markets:
+    get:
+      tags: [fx]
+      summary: Rate catalog of a country (no prices). Growth and above.
+      parameters:
+        - $ref: '#/components/parameters/cc'
+        - $ref: '#/components/parameters/format'
+      responses:
+        '200':
+          description: Catalog
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [country, markets]
+                properties:
+                  country: {type: string}
+                  markets:
+                    type: array
+                    items: {$ref: '#/components/schemas/MarketEntry'}
+        '402': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+  /v2/fx/{cc}/spread:
+    get:
+      tags: [fx]
+      summary: Spread of the official rate against another rate of the country. Growth and above.
+      parameters:
+        - $ref: '#/components/parameters/cc'
+        - {name: against, in: query, schema: {type: string, default: ve-paralelo}}
+        - {name: base, in: query, schema: {type: string, enum: [USD], default: USD}}
+        - $ref: '#/components/parameters/format'
+      responses:
+        '200':
+          description: Spread
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SpreadResponse'}
+        '400': {$ref: '#/components/responses/Error'}
+        '402': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+  /v2/fx/{cc}/route:
+    get:
+      tags: [fx]
+      summary: Best executable rate of a country. Pro and above.
+      parameters:
+        - $ref: '#/components/parameters/cc'
+        - {name: from, in: query, required: true, schema: {type: string}}
+        - {name: to, in: query, required: true, schema: {type: string}}
+        - {name: amount, in: query, required: true, schema: {type: number}}
+        - {name: direction, in: query, schema: {type: string, enum: [send, receive], default: send}}
+        - {name: max_staleness, in: query, schema: {type: integer}}
+        - $ref: '#/components/parameters/format'
+      responses:
+        '200':
+          description: Route
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RouteResponse'}
+        '400': {$ref: '#/components/responses/Error'}
+        '402': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+  /v2/fx/{cc}/bank-rates:
+    get:
+      tags: [fx]
+      summary: BCV quotations per bank (all plans)
+      description: |
+        What the BCV publishes as "informative rates of the banking system".
+        Each row is identified by the bank (SUDEBAN code or null), not by a rate
+        id. In VE, without the `bank` filter, `bank_rates` and `captured_at` keep the v1 response:
+        there `stale` means an earlier publication. In `banks`, `stale`
+        means the quotation exceeded its staleness threshold.
+      parameters:
+        - $ref: '#/components/parameters/cc'
+        - {name: bank, in: query, schema: {type: string, pattern: '^[0-9]{4}$'}, description: Filter by SUDEBAN code}
+        - $ref: '#/components/parameters/format'
+      responses:
+        '200':
+          description: Rates per bank
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/GeoFields'
+                  - type: object
+                    required: [indicator_date, fetched_at, plan, banks]
+                    properties:
+                      indicator_date: {type: string, format: date}
+                      fetched_at: {type: string, format: date-time}
+                      captured_at: {type: string, format: date-time, description: 'v1 alias; VE only.'}
+                      plan: {type: string}
+                      banks: {type: array, items: {$ref: '#/components/schemas/BankRate'}}
+                      bank_rates: {type: array, description: 'v1 rows with bank, buy, sell, date, stale and days_behind; VE only and without the bank filter.', items: {type: object}}
+        '400': {description: 'Invalid `bank`, or bank filter not available for the country (AU)', content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+        '404': {description: 'bcv_snapshot_unavailable in VE; bank_rates_not_available if the country does not publish per-bank rates', content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+        '503': {description: 'bank_rates_unavailable for bank sources outside VE', content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /v2/fx/convert:
+    get:
+      tags: [fx]
+      summary: A single conversion
+      description: |
+        VE: USD/EUR ↔ VES, default `via` = the official rate for that currency (ve-bcv / ve-euro).
+        CO: USD ↔ COP, default `via` = co-trm; `date` only with co-trm (the TRM in effect that day).
+        AU: USD ↔ AUD, default `via` = au-official; no `date`.
+        JP: USD ↔ JPY, default `via` = jp-official; `date` with jp-official.
+        LATAM (pe, py, bo, ar, br, cl, uy, mx, cr, gt, hn, do): USD ↔ local,
+        default `via` = {cc}-official; `date` in pe, ar, br, cl and hn.
+        SE/PL/CH: USD ↔ local and EUR ↔ local; default `via` = the official rate in
+        that currency ({cc}-official / {cc}-official-eur); `date` with the USD official rate.
+        With an explicit `via`, a registered EUR rate can convert EUR ↔ local
+        currency even if that country has no default EUR reference (for example,
+        remittances from Spain in AR/CO/MX). Remittances only support EUR → local.
+        `via` must match the pair; rates are never substituted and pairs are never crossed.
+        The extra BCV rates CNY/TRY/RUB are published in `/rates`, but they are not
+        convertible, and a `via` selecting them returns 400 with field `via`.
+        `date` from Growth and only where suitable conversion history exists.
+      parameters:
+        - {name: from, in: query, required: true, schema: {type: string}}
+        - {name: to, in: query, required: true, schema: {type: string}}
+        - {name: amount, in: query, required: true, schema: {type: number, exclusiveMinimum: 0, maximum: 1000000000000}}
+        - {name: via, in: query, schema: {type: string}, description: 'v2 id (ve-binance…). Snapshot rates only.'}
+        - {name: market, in: query, schema: {type: string}, description: 'Local v1 alias of via, for VE.'}
+        - {name: date, in: query, schema: {type: string, format: date}}
+        - $ref: '#/components/parameters/format'
+      responses:
+        '200':
+          description: Conversion
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ConvertResponse'}
+        '400': {$ref: '#/components/responses/Error'}
+        '402': {$ref: '#/components/responses/Error'}
+        '403': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+    post:
+      tags: [fx]
+      summary: Up to 50 conversions. Pro and above. Counts as 1 request.
+      description: 'Accepts exactly one JSON object: the v2 body with conversions, or the v1 body with from, to, amounts and market. A second JSON document returns 400 invalid_format. The second variant responds with rate, market, type, updated_at, results, total_in, total_out and id.'
+      parameters:
+        - $ref: '#/components/parameters/format'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  additionalProperties: false
+                  required: [conversions]
+                  properties:
+                    conversions:
+                      type: array
+                      minItems: 1
+                      maxItems: 50
+                      items:
+                        type: object
+                        additionalProperties: false
+                        required: [from, to, amount]
+                        properties:
+                          from: {type: string}
+                          to: {type: string}
+                          amount: {type: number}
+                          via: {type: string}
+                          date: {type: string, format: date}
+                - type: object
+                  required: [from, to, amounts]
+                  properties:
+                    from: {type: string}
+                    to: {type: string}
+                    amounts: {type: array, minItems: 1, maxItems: 50, items: {type: number}}
+                    market: {type: string}
+      responses:
+        '200':
+          description: One result per item, in the same order (conversion or error)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/BulkConvertResponse'
+                  - type: object
+                    required: [id, rate, market, type, updated_at, results, total_in, total_out]
+                    properties:
+                      id: {type: string}
+                      rate: {type: number}
+                      market: {type: string}
+                      type: {$ref: '#/components/schemas/RateType'}
+                      updated_at: {type: string, format: date-time}
+                      results: {type: array, items: {type: object, required: [amount, result], properties: {amount: {type: number}, result: {type: number}}}}
+                      total_in: {type: number}
+                      total_out: {type: number}
+        '400': {$ref: '#/components/responses/Error'}
+        '402': {$ref: '#/components/responses/Error'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+  /v2/crypto:
+    get:
+      tags: [crypto]
+      summary: USDT, USDC and EURC stablecoins priced in US dollars. Growth and above.
+      description: |
+        US-dollar price of the stablecoins published by Cotizave,
+        with the same row shape as `/v2/fx/{cc}/rates` (`type: crypto`,
+        `quote: USD`, `mid` = midpoint between bid and ask). Refreshed every
+        5 minutes. Plans without the feature receive the descriptor without a price
+        (`available: false`, `required_plan`).
+      parameters:
+        - {name: tag, in: query, schema: {type: string}, description: 'Id or tag (usdt, stablecoin…)'}
+        - $ref: '#/components/parameters/format'
+      responses:
+        '200':
+          description: Collection
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [base, fetched_at, plan, rates]
+                properties:
+                  base: {type: string, example: USD}
+                  fetched_at: {type: string, format: date-time}
+                  plan: {type: string}
+                  rates: {type: array, items: {$ref: '#/components/schemas/Rate'}}
+              examples:
+                growth:
+                  value:
+                    base: USD
+                    fetched_at: '2026-10-22T13:05:00Z'
+                    plan: indie
+                    rates:
+                      - {id: usdt-usd, market: crypto_usdt, name: Tether, type: crypto, base: USDT, quote: USD, mid: 0.998695, bid: 0.99869, ask: 0.9987, updated_at: '2026-10-22T13:05:00Z', stale: false, stale_after_sec: 900, staleness_sec: 12, change_24h_pct: -0.04, tags: [crypto, usdt, stablecoin], available: true, required_plan: indie}
+                      - {id: eurc-usd, market: crypto_eurc, name: Euro Coin, type: crypto, base: EURC, quote: USD, mid: 1.12, bid: 1.1199, ask: 1.1201, updated_at: '2026-10-22T13:05:00Z', stale: false, stale_after_sec: 900, staleness_sec: 12, change_24h_pct: 0.01, tags: [crypto, eurc, stablecoin], available: true, required_plan: indie}
+        '400': {$ref: '#/components/responses/Error'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '503': {$ref: '#/components/responses/Error'}
+  /v2/crypto/{id}:
+    get:
+      tags: [crypto]
+      summary: A single stablecoin (usdt-usd, usdc-usd, eurc-usd). Growth and above.
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, enum: [usdt-usd, usdc-usd, eurc-usd]}}
+        - $ref: '#/components/parameters/format'
+      responses:
+        '200': {description: Rate (includes `fetched_at`), content: {application/json: {schema: {$ref: '#/components/schemas/Rate'}}}}
+        '402': {description: 'feature_not_in_plan (details: feature, id, required_plan)', content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+        '404': {description: rate_not_found, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+        '503': {description: No data right now, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /v2/countries:
+    get:
+      tags: [countries]
+      summary: Published countries. Pro and above.
+      parameters: [{$ref: '#/components/parameters/format'}]
+      responses:
+        '200':
+          description: List
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [countries]
+                properties:
+                  countries: {type: array, items: {$ref: '#/components/schemas/Country'}}
+        '402': {$ref: '#/components/responses/Error'}
+  /v2/countries/{cc}:
+    get:
+      tags: [countries]
+      summary: A single published country. Pro and above.
+      parameters:
+        - {name: cc, in: path, required: true, schema: {type: string, pattern: '^[A-Za-z]{2}$'}}
+        - $ref: '#/components/parameters/format'
+      responses:
+        '200': {description: Country, content: {application/json: {schema: {$ref: '#/components/schemas/Country'}}}}
+        '402': {$ref: '#/components/responses/Error'}
+        '404': {description: country_not_supported, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /v2/currencies:
+    get:
+      tags: [currencies]
+      summary: Currencies quoted by Cotizave (ISO 4217). Pro and above.
+      parameters: [{$ref: '#/components/parameters/format'}]
+      responses:
+        '200':
+          description: List
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [currencies]
+                properties:
+                  currencies: {type: array, items: {$ref: '#/components/schemas/Currency'}}
+        '402': {$ref: '#/components/responses/Error'}
+  /v2/currencies/{code}:
+    get:
+      tags: [currencies]
+      summary: A single currency. Pro and above.
+      parameters:
+        - {name: code, in: path, required: true, schema: {type: string, pattern: '^[A-Za-z]{3}$'}}
+        - $ref: '#/components/parameters/format'
+      responses:
+        '200': {description: Currency, content: {application/json: {schema: {$ref: '#/components/schemas/Currency'}}}}
+        '400': {$ref: '#/components/responses/Error'}
+        '402': {$ref: '#/components/responses/Error'}
+        '404': {description: currency_not_found, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /v2/banks/{cc}:
+    get:
+      tags: [banks]
+      summary: Banks of a country (identity, no price)
+      parameters:
+        - $ref: '#/components/parameters/cc'
+        - {name: q, in: query, schema: {type: string}}
+        - $ref: '#/components/parameters/format'
+      responses:
+        '200':
+          description: List
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [country, total, banks]
+                properties:
+                  country: {type: string}
+                  total: {type: integer}
+                  banks: {type: array, items: {$ref: '#/components/schemas/Bank'}}
+        '404': {$ref: '#/components/responses/Error'}
+  /v2/banks/{cc}/{code}:
+    get:
+      tags: [banks]
+      summary: A single bank by its official code (SUDEBAN in VE)
+      parameters:
+        - $ref: '#/components/parameters/cc'
+        - {name: code, in: path, required: true, schema: {type: string, pattern: '^[0-9]{4}$'}}
+        - $ref: '#/components/parameters/format'
+      responses:
+        '200':
+          description: Bank
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Bank'}
+        '400': {$ref: '#/components/responses/Error'}
+        '403': {$ref: '#/components/responses/Error'}
+        '404': {description: bank_not_found | country_not_supported, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+  /v2/holidays/{cc}:
+    get:
+      tags: [holidays]
+      summary: Holidays (year), is-it-a-holiday (date), or the next one (from). Basic and above.
+      description: '`year`, `date` and `from` are mutually exclusive (400 if two are sent).'
+      parameters:
+        - $ref: '#/components/parameters/cc'
+        - {name: year, in: query, schema: {type: integer, minimum: 1583, maximum: 9999}}
+        - {name: date, in: query, schema: {type: string, format: date}}
+        - {name: from, in: query, schema: {type: string, format: date}}
+        - $ref: '#/components/parameters/format'
+      responses:
+        '200':
+          description: Depends on the mode
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    required: [country, year, holidays]
+                    properties:
+                      country: {type: string}
+                      year: {type: integer}
+                      holidays: {type: array, items: {$ref: '#/components/schemas/Holiday'}}
+                  - type: object
+                    required: [country, date, is_holiday, holiday]
+                    properties:
+                      country: {type: string}
+                      date: {type: string, format: date}
+                      is_holiday: {type: boolean}
+                      holiday: {oneOf: [{$ref: '#/components/schemas/Holiday'}, {type: 'null'}]}
+                  - type: object
+                    required: [country, from, days_until, holiday]
+                    properties:
+                      country: {type: string}
+                      from: {type: string, format: date}
+                      days_until: {type: integer}
+                      holiday: {$ref: '#/components/schemas/Holiday'}
+        '400': {$ref: '#/components/responses/Error'}
+        '402': {$ref: '#/components/responses/Error'}
+        '403': {$ref: '#/components/responses/Error'}
+        '404': {description: 'holidays_not_available (year outside the table; details first_year/last_year)', content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+        '503': {$ref: '#/components/responses/Error'}
+  /v2/holidays/{cc}/business-days:
+    get:
+      tags: [holidays]
+      summary: Date reached by adding N business days. Basic and above.
+      parameters:
+        - $ref: '#/components/parameters/cc'
+        - {name: from, in: query, schema: {type: string, format: date}}
+        - {name: days, in: query, required: true, schema: {type: integer, minimum: 0, maximum: 3650}}
+        - $ref: '#/components/parameters/format'
+      responses:
+        '200':
+          description: Result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [country, from, days, result]
+                properties:
+                  country: {type: string}
+                  from: {type: string, format: date}
+                  days: {type: integer}
+                  result: {type: string, format: date}
+        '400': {$ref: '#/components/responses/Error'}
+        '402': {$ref: '#/components/responses/Error'}
+        '403': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+components:
+  securitySchemes:
+    ApiKey: {type: apiKey, in: header, name: X-API-Key}
+  parameters:
+    cc: {name: cc, in: path, required: true, schema: {type: string, pattern: '^[A-Za-z]{2}$'}, description: 'ISO 3166 alpha-2 (case-insensitive). The set of published countries grows over time; get the live list from GET /v2/countries rather than hard-coding it. A code that is not published yet returns 404 country_not_supported.'}
+    id: {name: id, in: path, required: true, schema: {type: string, pattern: '^[A-Za-z]{2}-[A-Za-z0-9-]+$'}, description: 'Canonical id (ve-bcv). Case-insensitive.'}
+    format: {name: format, in: query, schema: {type: string, enum: [json, csv, xml]}}
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    RateLimited:
+      description: Rate limit or quota exceeded
+      headers:
+        Retry-After: {schema: {type: integer}}
+        X-RateLimit-Scope: {schema: {type: string, enum: [burst, monthly]}}
+        X-RateLimit-Limit-Minute: {schema: {type: integer}, description: Requests per minute allowed by the plan}
+        X-RateLimit-Remaining-Minute: {schema: {type: integer}}
+        X-RateLimit-Retry-After-Ms: {schema: {type: integer}}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: {type: string, examples: [rate_not_found, country_not_supported, feature_not_in_plan, unknown_parameter]}
+        message: {type: string}
+        field: {type: string}
+        details: {type: object}
+    Category:
+      type: string
+      description: 'Values of the category filter parameter; its name and values are kept as-is.'
+      enum: [official, interbank, parallel, securities, crypto_p2p, crypto_exchange, bank_board, cash, remittance, card, exchange_house, crypto]
+    RateType:
+      type: string
+      description: 'Values compatible with v1 for VE; v2-only classes keep their own meaning.'
+      enum: [reference, interbank, parallel, securities, p2p, crypto_exchange, bank_board, cash, remittance, card, exchange_house, crypto]
+    Rate:
+      type: object
+      description: 'Fields present depend on the plan. In VE the v1 fields keep exactly their omission rules; Free only adds id.'
+      required: [id, market, type, mid, updated_at]
+      properties:
+        id: {type: string}
+        market: {type: string, description: 'Stable local identifier; in VE it is exactly the v1 market. For additional BCV currencies it is the ISO 4217 code.'}
+        name: {type: string, description: 'Basic+'}
+        description: {type: string, description: 'What the rate is, who publishes it, how often it changes and what it is used for. Follows Accept-Language (es/en; en when the header is absent). Absent if there is no text.'}
+        type: {$ref: '#/components/schemas/RateType'}
+        base: {type: string, description: 'In VE it is omitted if v1 omitted it.'}
+        quote: {type: string, description: 'Basic+'}
+        mid: {type: number}
+        bid: {type: [number, 'null'], description: 'VE keeps the v1 omission when there is no bid price.'}
+        ask: {type: [number, 'null'], description: 'VE keeps the v1 omission when there is no ask price.'}
+        updated_at: {type: string, format: date-time, description: Time of the data point at the source}
+        effective_date: {type: string, format: date, description: Value date (official rates only)}
+        fetched_at: {type: string, format: date-time, description: Only on the single-rate resource}
+        stale: {type: boolean, description: 'Basic+ in /rates; Free keeps it in /convert.'}
+        stale_after_sec: {type: integer, description: 'In VE it appears when v1 had an explicit threshold.'}
+        staleness_sec: {type: integer, description: 'Basic+ in /rates; Free keeps it in /convert and /route.'}
+        change_24h_pct: {type: [number, 'null'], description: 'Growth+. Against the latest capture from ≥24 h ago'}
+        vs_official_pct: {type: [number, 'null'], description: 'Growth+. Against the official rate of the same base; null for official rates'}
+        tags: {type: array, items: {type: string}, description: 'Growth+'}
+        available: {const: true, description: 'Basic+'}
+        required_plan: {type: string, enum: [free, hobby, indie, pro, pro_extra], description: 'Growth+. Id of the minimum public plan that enables the rate; hobby = Basic, indie = Growth.'}
+    RateDescriptor:
+      type: object
+      description: 'Restricted VE rate: Free sees only id, Basic sees identity and available=false, Growth+ sees the full descriptor.'
+      required: [id]
+      properties:
+        id: {type: string}
+        market: {type: string, description: Stable local identifier}
+        name: {type: string}
+        description: {type: string, description: 'What the rate is, who publishes it, how often it changes and what it is used for. Follows Accept-Language (es/en; en when the header is absent). Absent if there is no text.'}
+        type: {$ref: '#/components/schemas/RateType'}
+        base: {type: string}
+        quote: {type: string}
+        tags: {type: array, items: {type: string}}
+        available: {const: false}
+        required_plan: {type: string, enum: [free, hobby, indie, pro, pro_extra], description: 'Id of the minimum public plan that enables the rate; hobby = Basic, indie = Growth.'}
+    GeoFields:
+      type: object
+      description: 'Country data at the top level. country and currency on all plans; geography only on Pro+.'
+      required: [country, currency]
+      properties:
+        country: {type: string}
+        country_name: {type: string, description: Pro+}
+        flag: {type: string, description: Pro+}
+        continent: {type: string, description: Pro+}
+        region: {type: string, description: 'Pro+ (UN M49)'}
+        region_code: {type: string, description: 'Pro+ (UN M49)'}
+        timezone: {type: string, description: 'Pro+ (IANA)'}
+        currency: {type: string}
+    RatesResponse:
+      allOf:
+        - $ref: '#/components/schemas/GeoFields'
+        - type: object
+          required: [base, fetched_at, plan, rates]
+          properties:
+            base: {type: string}
+            fetched_at: {type: string, format: date-time}
+            plan: {type: string}
+            index: {type: object, description: 'Cotizave Index object. VE only.'}
+            rates:
+              type: array
+              items:
+                oneOf:
+                  - $ref: '#/components/schemas/Rate'
+                  - $ref: '#/components/schemas/RateDescriptor'
+    BankRate:
+      type: object
+      required: [bank, base, quote, mid, bid, ask, updated_at, stale, stale_after_sec, staleness_sec, days_behind]
+      properties:
+        bank:
+          type: object
+          required: [code, name]
+          properties:
+            code: {type: [string, 'null'], description: 'SUDEBAN; null when there is no reliable code'}
+            name: {type: string, description: Name as published by the BCV}
+        base: {type: string}
+        quote: {type: string}
+        mid: {type: number}
+        bid: {type: [number, 'null']}
+        ask: {type: [number, 'null']}
+        updated_at: {type: string, format: date-time}
+        effective_date: {type: string, format: date, description: 'Value date (VE); absent if the bank does not publish it (AU)'}
+        stale: {type: boolean}
+        stale_after_sec: {type: integer}
+        staleness_sec: {type: integer}
+        days_behind: {type: integer, description: Days behind the latest publication}
+        vs_official_pct: {type: [number, 'null'], description: Growth+}
+    Country:
+      type: object
+      required: [code, name, flag, continent, region, region_code, currency, timezone, rates]
+      properties:
+        code: {type: string}
+        name: {type: string, description: Follows Accept-Language (es/en)}
+        flag: {type: string}
+        continent: {type: string}
+        region: {type: string}
+        region_code: {type: string}
+        currency: {type: string}
+        timezone: {type: string}
+        rates: {type: array, items: {type: string}}
+    Currency:
+      type: object
+      required: [code, numeric_code, name, minor_unit, symbol]
+      properties:
+        code: {type: string}
+        numeric_code: {type: string}
+        name: {type: string, description: Follows Accept-Language (es/en)}
+        minor_unit: {type: integer}
+        symbol: {type: string}
+    MarketEntry:
+      type: object
+      required: [id, market, name, type, base, quote, tags, stale_after_sec, available, required_plan, conversion_directions]
+      properties:
+        id: {type: string}
+        market: {type: string}
+        aliases: {type: array, items: {type: string}, description: 'v1 aliases for VE markets.'}
+        name: {type: string}
+        type: {$ref: '#/components/schemas/RateType'}
+        base: {type: string}
+        quote: {type: string}
+        tags: {type: array, items: {type: string}}
+        stale_after_sec: {type: integer}
+        available: {type: boolean}
+        required_plan: {type: string, enum: [free, hobby, indie, pro, pro_extra], description: 'Id of the minimum public plan that enables the rate; hobby = Basic, indie = Growth.'}
+        conversion_directions:
+          type: array
+          description: 'Pairs that /convert supports for this rate, regardless of plan and of whether a usable price exists right now. Empty for rates outside the conversion snapshot.'
+          items:
+            type: object
+            required: [from, to]
+            properties:
+              from: {type: string}
+              to: {type: string}
+    HistoryPointResponse:
+      type: object
+      required: [id, market, base, quote, date, mid, updated_at, fetched_at]
+      properties:
+        id: {type: string}
+        market: {type: string}
+        base: {type: string}
+        quote: {type: string}
+        date: {type: string, format: date}
+        mid: {type: number}
+        rate: {type: number, description: 'v1-compatible alias of mid; VE only.'}
+        bid: {type: number, description: 'Only for rates with their own daily history.'}
+        ask: {type: number, description: 'Only for rates with their own daily history.'}
+        updated_at: {type: string, format: date-time}
+        fetched_at: {type: string, format: date-time, description: 'For own daily history, the last write of that version; in VE, the stored capture; for the TRM fallback, the time the response was built.'}
+        captured_at: {type: string, format: date-time, description: 'v1-compatible name of the capture time; VE only.'}
+    HistoryCollection:
+      type: object
+      required: [id, market, base, quote, from, to, granularity, count, next_cursor, points]
+      properties:
+        id: {type: string}
+        market: {type: string}
+        base: {type: string}
+        quote: {type: string}
+        from: {type: string, format: date}
+        to: {type: string, format: date}
+        granularity: {type: string, enum: [daily, raw]}
+        count: {type: integer}
+        next_cursor: {type: [string, 'null']}
+        truncated: {type: boolean, description: 'Raw only: present and true when the page was cut short.'}
+        points:
+          type: array
+          items:
+            type: object
+            required: [date, mid, updated_at, fetched_at]
+            properties:
+              date: {type: string, format: date}
+              mid: {type: number}
+              rate: {type: number, description: 'v1-compatible alias of mid; VE only.'}
+              bid: {type: number, description: 'Only for rates with their own daily history.'}
+              ask: {type: number, description: 'Only for rates with their own daily history.'}
+              updated_at: {type: string, format: date-time}
+              captured_at: {type: string, format: date-time, description: 'v1-compatible name of the capture time; VE only.'}
+              fetched_at: {type: string, format: date-time, description: 'For own daily history, the last write of that version; in VE, the stored capture; for the TRM fallback, the time the response was built.'}
+    ConvertResponse:
+      type: object
+      required: [from, to, rate, via, market, type, updated_at, staleness_sec, stale]
+      properties:
+        from: {$ref: '#/components/schemas/Amount'}
+        to: {$ref: '#/components/schemas/Amount'}
+        rate: {type: number}
+        via: {type: string}
+        market: {type: string, description: 'Local identifier of the rate used; via keeps the global v2 id.'}
+        type: {$ref: '#/components/schemas/RateType'}
+        updated_at: {type: string, format: date-time}
+        effective_date: {type: string, format: date}
+        date: {type: string, format: date}
+        staleness_sec: {type: integer}
+        stale: {type: boolean}
+    Amount:
+      type: object
+      required: [currency, amount]
+      properties:
+        currency: {type: string}
+        amount: {type: number}
+    SpreadResponse:
+      type: object
+      required: [country, reference, compared, spread, fetched_at]
+      properties:
+        country: {type: string}
+        reference: {$ref: '#/components/schemas/SpreadQuote'}
+        compared: {$ref: '#/components/schemas/SpreadQuote'}
+        spread:
+          type: object
+          required: [absolute, percentage, direction]
+          properties:
+            absolute: {type: number}
+            percentage: {type: number}
+            direction: {type: string}
+        fetched_at: {type: string}
+    SpreadQuote:
+      type: object
+      required: [id, market, value, updated_at]
+      properties:
+        id: {type: string}
+        market: {type: string}
+        value: {type: number}
+        updated_at: {type: string}
+    RouteResponse:
+      type: object
+      required: [country, from, direction, best, alternatives, fetched_at]
+      properties:
+        country: {type: string}
+        from: {$ref: '#/components/schemas/Amount'}
+        direction: {type: string}
+        best: {$ref: '#/components/schemas/RouteOption'}
+        alternatives: {type: array, items: {$ref: '#/components/schemas/RouteOption'}}
+        skipped:
+          type: array
+          items:
+            type: object
+            required: [id, market, reason]
+            properties:
+              id: {type: string}
+              market: {type: string}
+              reason: {type: string}
+        fetched_at: {type: string}
+    RouteOption:
+      type: object
+      required: [id, market, type, rate, amount, updated_at, staleness_sec]
+      properties:
+        id: {type: string}
+        market: {type: string}
+        type: {$ref: '#/components/schemas/RateType'}
+        rate: {type: number}
+        amount: {type: number}
+        updated_at: {type: string}
+        staleness_sec: {type: integer}
+    Bank:
+      type: object
+      required: [country, code, name, type, bank_rates]
+      properties:
+        country: {type: string}
+        code: {type: string}
+        name: {type: string}
+        type: {type: [string, 'null'], enum: [public, private, null], description: 'null if the source does not report it (CO)'}
+        bank_rates: {type: [string, 'null'], description: 'Link to its quotations at /v2/fx/{cc}/bank-rates?bank=; null if there are none'}
+    Holiday:
+      type: object
+      required: [date, local_name, name, type, fixed, global]
+      properties:
+        date: {type: string, format: date}
+        local_name: {type: string}
+        name: {type: string}
+        type: {type: string}
+        types: {type: array, items: {type: string}}
+        fixed: {type: boolean}
+        global: {type: boolean}
+    GlobalRateRow:
+      type: object
+      required: [id, country, quote, mid, updated_at, stale, stale_after_sec]
+      properties:
+        id: {type: string}
+        country: {type: string}
+        quote: {type: string}
+        mid: {type: number}
+        updated_at: {type: string, format: date-time}
+        stale: {type: boolean}
+        stale_after_sec: {type: integer}
+    GlobalRatesList:
+      type: object
+      required: [base, date, count, rates]
+      properties:
+        base: {type: string}
+        date: {type: string, format: date-time}
+        count: {type: integer}
+        rates: {type: array, items: {$ref: '#/components/schemas/GlobalRateRow'}}
+    HistoricalLimitRow:
+      type: object
+      required: [id, country, quote, first, last, days]
+      properties:
+        id: {type: string}
+        country: {type: string}
+        quote: {type: string}
+        base: {type: string, description: 'Omitted = USD; EUR for euro-denominated official rates.'}
+        first: {type: string, format: date}
+        last: {type: string, format: date}
+        days: {type: integer}
+    HistoricalLimitsResponse:
+      type: object
+      required: [base, count, limits]
+      properties:
+        base: {type: string, example: USD}
+        count: {type: integer}
+        limits: {type: array, items: {$ref: '#/components/schemas/HistoricalLimitRow'}}
+    IssuerPublishes:
+      type: object
+      required: [rate_id, label]
+      properties:
+        rate_id: {type: string}
+        label: {type: string}
+        pair: {type: string}
+        schedule: {type: string}
+        value_date: {type: string}
+        source: {type: string}
+        status: {type: string}
+    IssuerJurisdiction:
+      type: object
+      required: [countries]
+      properties:
+        countries: {type: array, items: {type: string}}
+        currency: {type: string}
+    IssuerLinks:
+      type: object
+      required: [website]
+      properties:
+        website: {type: string}
+    Issuer:
+      type: object
+      required: [id, name, short_name, kind, jurisdiction, publishes]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        short_name: {type: string}
+        kind: {type: string, description: 'central_bank, exchange, aggregator, …'}
+        jurisdiction: {$ref: '#/components/schemas/IssuerJurisdiction'}
+        timezone: {type: string}
+        links: {$ref: '#/components/schemas/IssuerLinks'}
+        publishes: {type: array, items: {$ref: '#/components/schemas/IssuerPublishes'}}
+    IssuerWithout:
+      type: object
+      required: [rate_id, country, reason, status]
+      properties:
+        rate_id: {type: string}
+        country: {type: string}
+        reason: {type: string}
+        status: {type: string}
+    IssuersSummary:
+      type: object
+      required: [issuers, countries]
+      properties:
+        issuers: {type: integer}
+        countries: {type: integer}
+    IssuersResponse:
+      type: object
+      required: [issuers]
+      properties:
+        issuers: {type: array, items: {$ref: '#/components/schemas/Issuer'}}
+        without_issuer: {type: array, items: {$ref: '#/components/schemas/IssuerWithout'}}
+        summary: {$ref: '#/components/schemas/IssuersSummary'}
+    BulkConvertItem:
+      type: object
+      required: [index]
+      description: 'One result per input item, in request order: a conversion or an error.'
+      properties:
+        index: {type: integer, description: 'Position in the request array.'}
+        conversion: {$ref: '#/components/schemas/ConvertResponse'}
+        error: {$ref: '#/components/schemas/Error'}
+    BulkConvertResponse:
+      type: object
+      required: [count, succeeded, failed, results]
+      properties:
+        count: {type: integer}
+        succeeded: {type: integer}
+        failed: {type: integer}
+        results: {type: array, items: {$ref: '#/components/schemas/BulkConvertItem'}}
+    RatesSnapshotRow:
+      type: object
+      description: 'Close of a rate on a past date. No change_24h or vs_official: those are relative to "now".'
+      required: [id, market, type, mid, updated_at]
+      properties:
+        id: {type: string}
+        market: {type: string}
+        type: {$ref: '#/components/schemas/RateType'}
+        mid: {type: number}
+        bid: {type: number, description: 'Absent when the source has no bid price.'}
+        ask: {type: number, description: 'Absent when the source has no ask price.'}
+        updated_at: {type: string, format: date-time}
+    RatesSnapshotResponse:
+      description: 'The full board of a country on a date: every rate the plan includes, as it was that day.'
+      allOf:
+        - $ref: '#/components/schemas/GeoFields'
+        - type: object
+          required: [date, base, count, rates]
+          properties:
+            date: {type: string, format: date}
+            base: {type: string}
+            count: {type: integer}
+            rates: {type: array, items: {$ref: '#/components/schemas/RatesSnapshotRow'}}
+    HistoryStatsPoint:
+      type: object
+      required: [date, mid]
+      properties:
+        date: {type: string, format: date}
+        mid: {type: number}
+    HistoryStats:
+      type: object
+      description: 'Aggregates of a period over the daily closes. count is the number of days with data.'
+      required: [count, min, max, avg, stddev, first, last, change, change_pct]
+      properties:
+        count: {type: integer}
+        min: {type: number}
+        max: {type: number}
+        avg: {type: number}
+        stddev: {type: number}
+        first: {$ref: '#/components/schemas/HistoryStatsPoint'}
+        last: {$ref: '#/components/schemas/HistoryStatsPoint'}
+        change: {type: number}
+        change_pct: {type: number}
+        period: {type: integer, description: 'Moving-average window (only with ma).'}
+        sma: {type: number, description: 'Simple moving average (only with ma).'}
+        ema: {type: number, description: 'Exponential moving average (only with ma).'}
+        vs_sma_pct: {type: number, description: 'Latest close against its SMA (only with ma).'}
+        vs_ema_pct: {type: number, description: 'Latest close against its EMA (only with ma).'}
+    HistoryStatsResponse:
+      type: object
+      required: [id, market, base, quote, from, to, granularity, stats]
+      properties:
+        id: {type: string}
+        market: {type: string}
+        base: {type: string}
+        quote: {type: string}
+        from: {type: string, format: date}
+        to: {type: string, format: date}
+        granularity: {type: string}
+        stats: {$ref: '#/components/schemas/HistoryStats'}

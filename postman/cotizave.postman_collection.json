@@ -1,0 +1,1803 @@
+{
+  "info": {
+    "_postman_id": "cotizave-api-collection-v1",
+    "name": "Cotizave API",
+    "description": "Colección completa de la API de Cotizave (api.cotizave.com).\n\n## Base URL\nLa variable `base_url` está configurada como `https://api.cotizave.com` por defecto.\nPara desarrollo local cambiarla a `http://localhost:8080`.\n\n## Grupos de autenticación\n\n**1. Public** — Sin auth. Algunos endpoints tienen rate limit por IP.\n\n**2. User (JWT)** — Cookie de sesión + headers CSRF.\n  - `Cookie: __Secure-cotizave_session={{jwt}}` (en dev: `cotizave_session`)\n  - `X-Requested-With: cotizave`\n  - `X-CSRF-Token: {{csrf_token}}` (leído de la cookie `__Secure-cotizave_csrf`)\n  El script de test en el endpoint *Login* extrae automáticamente el JWT de la cookie y lo guarda en `{{jwt}}`.\n\n**3. FX (API Key)** — Header `X-API-Key: {{api_key}}`.\n\n**4. Admin** — `X-Service-Key: {{service_key}}` (recomendado) o JWT de admin.\n\n**5. Webhooks** — Secret en la URL; sin JWT ni API key.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url",     "value": "https://api.cotizave.com", "type": "string" },
+    { "key": "jwt",          "value": "",                          "type": "string" },
+    { "key": "csrf_token",   "value": "",                          "type": "string" },
+    { "key": "api_key",      "value": "ctz_live_...",              "type": "string" },
+    { "key": "service_key",  "value": "ctz_svc_...",               "type": "string" },
+    { "key": "user_id",      "value": "",                          "type": "string" },
+    { "key": "key_id",       "value": "",                          "type": "string" },
+    { "key": "payment_id",   "value": "",                          "type": "string" },
+    { "key": "invoice_id",   "value": "",                          "type": "string" },
+    { "key": "notification_id", "value": "",                       "type": "string" },
+    { "key": "markup_rule_id",  "value": "",                       "type": "string" },
+    { "key": "upload_id",    "value": "",                          "type": "string" },
+    { "key": "service_key_id", "value": "",                        "type": "string" },
+    { "key": "country_code", "value": "VE",                        "type": "string" },
+    { "key": "pm_id",        "value": "ves_transfer",              "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "1. Public",
+      "description": "Endpoints públicos sin autenticación.",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "Verifica el estado de la API. Sin auth. Retorna 200 si el servicio está activo."
+          }
+        },
+        {
+          "name": "Legal versions",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/v1/legal/versions",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "legal", "versions"]
+            },
+            "description": "Retorna las versiones vigentes de los documentos legales (terms, privacy, cookies, disclaimers, sla). Sin auth."
+          }
+        },
+        {
+          "name": "FX public calculator",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/v1/fx/public/calculator?from=USD&amount=100",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "fx", "public", "calculator"],
+              "query": [
+                { "key": "from",   "value": "USD",  "description": "Moneda origen (default: USD)" },
+                { "key": "amount", "value": "100",  "description": "Monto a convertir" }
+              ]
+            },
+            "description": "Calculadora pública. Sin auth. Rate limit: 60 req/min y 1000 req/hora por IP. Retorna cuántos VES recibiría el destinatario según cada mercado."
+          }
+        },
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/v1/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "auth", "register"]
+            },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"TuPassword123!\",\n  \"name\": \"Juan Pérez\",\n  \"country\": \"VE\",\n  \"accepted_terms_version\": \"2.2\",\n  \"accepted_privacy_version\": \"1.4\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Crea una cuenta nueva. Sin auth. Requiere aceptación de versiones vigentes de T&C y privacidad (ver /v1/legal/versions). Devuelve 201 con la primera API key generada."
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Extrae el JWT de la cookie de sesión y lo guarda en la variable de colección.",
+                  "const cookie = pm.cookies.get('__Secure-cotizave_session') || pm.cookies.get('cotizave_session');",
+                  "if (cookie) {",
+                  "    pm.collectionVariables.set('jwt', cookie);",
+                  "    console.log('JWT guardado en {{jwt}}');",
+                  "}",
+                  "",
+                  "// Extrae el CSRF token si está disponible.",
+                  "const csrf = pm.cookies.get('__Secure-cotizave_csrf') || pm.cookies.get('cotizave_csrf');",
+                  "if (csrf) {",
+                  "    pm.collectionVariables.set('csrf_token', csrf);",
+                  "    console.log('CSRF token guardado en {{csrf_token}}');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "auth", "login"]
+            },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"TuPassword123!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Autentica con email y password. Sin auth previa. Emite cookie de sesión `__Secure-cotizave_session` (prod) / `cotizave_session` (dev) y cookie CSRF `__Secure-cotizave_csrf`. El script de test guarda ambas en las variables de colección."
+          }
+        },
+        {
+          "name": "Google login",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/v1/auth/google",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "auth", "google"]
+            },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_token\": \"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...\",\n  \"country\": \"VE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Autentica o registra con id_token de Google OAuth2. Sin auth previa. `country` es opcional (ISO 3166-1 alpha-2)."
+          }
+        },
+        {
+          "name": "Verify email",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/v1/auth/verify-email",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "auth", "verify-email"]
+            },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"token\": \"abc123verificationtoken\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Valida el token de verificación de email enviado al correo del usuario. Sin auth."
+          }
+        },
+        {
+          "name": "Resend verification (public)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/v1/auth/resend-verification",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "auth", "resend-verification"]
+            },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Re-envía el email de verificación. Este endpoint público requiere JWT (el usuario ya está logueado pero no verificado). Auth: JWT en cookie + CSRF."
+          }
+        },
+        {
+          "name": "Forgot password",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/v1/auth/forgot-password",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "auth", "forgot-password"]
+            },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Envía un código de reset de password al email. Sin auth. Responde igual haya o no cuenta (anti-enumeration)."
+          }
+        },
+        {
+          "name": "Reset password",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/v1/auth/reset-password",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "auth", "reset-password"]
+            },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"code\": \"123456\",\n  \"new_password\": \"NuevoPassword456!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Valida el código de reset y cambia el password. Sin auth. El `code` viene del email enviado por forgot-password."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. User (JWT)",
+      "description": "Endpoints protegidos por JWT en cookie + CSRF.\n\nHeaders requeridos en todas las requests:\n- `Cookie: __Secure-cotizave_session={{jwt}}`\n- `X-Requested-With: cotizave`\n- `X-CSRF-Token: {{csrf_token}}`",
+      "item": [
+        {
+          "name": "Profile",
+          "item": [
+            {
+              "name": "Get me",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/me",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "me"]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Retorna el perfil del usuario autenticado. Como efecto secundario renueva el JWT (sliding session). Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "Update me",
+              "request": {
+                "method": "PATCH",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/me",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "me"]
+                },
+                "header": [
+                  { "key": "Content-Type",       "value": "application/json" },
+                  { "key": "Cookie",             "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",   "value": "cotizave" },
+                  { "key": "X-CSRF-Token",       "value": "{{csrf_token}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Juan Pérez\",\n  \"country\": \"VE\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Actualiza nombre y/o país del perfil. Campos opcionales (PATCH semántico). Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "Delete account",
+              "request": {
+                "method": "DELETE",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/me",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "me"]
+                },
+                "header": [
+                  { "key": "Content-Type",       "value": "application/json" },
+                  { "key": "Cookie",             "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",   "value": "cotizave" },
+                  { "key": "X-CSRF-Token",       "value": "{{csrf_token}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"password\": \"TuPasswordActual123!\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Elimina la cuenta permanentemente. Requiere confirmar con password. Revoca todas las API keys. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "Change password",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/change-password",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "change-password"]
+                },
+                "header": [
+                  { "key": "Content-Type",       "value": "application/json" },
+                  { "key": "Cookie",             "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",   "value": "cotizave" },
+                  { "key": "X-CSRF-Token",       "value": "{{csrf_token}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"old_password\": \"TuPasswordActual123!\",\n  \"new_password\": \"NuevoPassword456!\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Cambia la contraseña. Requiere la password actual. Invalida la sesión actual y limpia la cookie. Auth: JWT en cookie + CSRF."
+              }
+            }
+          ]
+        },
+        {
+          "name": "API Keys",
+          "item": [
+            {
+              "name": "Create key",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/keys",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "keys"]
+                },
+                "header": [
+                  { "key": "Content-Type",       "value": "application/json" },
+                  { "key": "Cookie",             "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",   "value": "cotizave" },
+                  { "key": "X-CSRF-Token",       "value": "{{csrf_token}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Production server\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Genera una nueva API key de producto `fx`. El campo `api_key` en la respuesta es la única vez que se muestra la clave completa. Requiere email verificado. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "List keys",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/keys?month=2026-05",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "keys"],
+                  "query": [
+                    { "key": "month", "value": "2026-05", "description": "Mes de billing YYYY-MM (opcional, default: mes actual)" }
+                  ]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Lista las API keys del usuario con estadísticas de uso del mes indicado. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "Rename key",
+              "request": {
+                "method": "PATCH",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/keys/{{key_id}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "keys", "{{key_id}}"]
+                },
+                "header": [
+                  { "key": "Content-Type",       "value": "application/json" },
+                  { "key": "Cookie",             "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",   "value": "cotizave" },
+                  { "key": "X-CSRF-Token",       "value": "{{csrf_token}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Staging server\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Renombra una API key existente. `{{key_id}}` es el ObjectID de 24 chars. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "Revoke key",
+              "request": {
+                "method": "DELETE",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/keys/{{key_id}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "keys", "{{key_id}}"]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Revoca una API key permanentemente. Invalida el cache de Redis inmediatamente. Auth: JWT en cookie + CSRF."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Billing",
+          "item": [
+            {
+              "name": "Get billing info",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/billing",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "billing"]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Retorna el estado de billing del usuario: plan activo, expiración, historial de pagos. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "List processors",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/billing/processors?plan=pro",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "billing", "processors"],
+                  "query": [
+                    { "key": "plan", "value": "pro", "description": "Nombre del plan (filtra métodos elegibles, e.g. PayPal solo aparece en pro)" }
+                  ]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Lista procesadores de pago activos y sus métodos disponibles, filtrados por plan. Sin `?plan=pro`, PayPal queda oculto. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "Get checkout URL",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/billing/checkout-url?provider=manual&plan=pro&method=ves_transfer",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "billing", "checkout-url"],
+                  "query": [
+                    { "key": "provider", "value": "manual" },
+                    { "key": "plan",     "value": "pro" },
+                    { "key": "method",   "value": "ves_transfer", "description": "ves_transfer | airtm | wise | paypal | binance_pay" }
+                  ]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Retorna URL de checkout externo o `{internal_flow: true}` si el método usa el flujo interno de pago manual. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "Submit payment request",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/billing/payment-request",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "billing", "payment-request"]
+                },
+                "header": [
+                  { "key": "Content-Type",       "value": "application/json" },
+                  { "key": "Cookie",             "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",   "value": "cotizave" },
+                  { "key": "X-CSRF-Token",       "value": "{{csrf_token}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"plan\": \"pro\",\n  \"method\": \"ves_transfer\",\n  \"reference\": \"REF-123456789\",\n  \"sender_bank\": \"Banco de Venezuela\",\n  \"sender_name\": \"Juan Pérez\",\n  \"transfer_date\": \"2026-05-08\",\n  \"amount_paid\": \"$29 USD\",\n  \"proof_url\": \"https://example.com/comprobante.jpg\",\n  \"notes\": \"Pago correspondiente al mes de mayo.\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Envía una solicitud de pago manual. Campos requeridos: `plan`, `method`, `reference`. Rate limit: 5 req/hora. Requiere email verificado. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "List payment requests",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/billing/payment-requests",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "billing", "payment-requests"]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Lista las solicitudes de pago del usuario autenticado. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "Get invoice detail",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/billing/invoices/{{invoice_id}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "billing", "invoices", "{{invoice_id}}"]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Retorna el detalle de un invoice de payment request por ID. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "Payment instructions",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/billing/payment-instructions?method=ves_transfer&amount_usd=29",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "billing", "payment-instructions"],
+                  "query": [
+                    { "key": "method",     "value": "ves_transfer", "description": "ves_transfer | airtm | wise | paypal | binance_pay" },
+                    { "key": "amount_usd", "value": "29",           "description": "Monto en USD para calcular el equivalente en VES (solo para ves_transfer)" }
+                  ]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Retorna las instrucciones de pago para el método indicado. Para `ves_transfer` incluye la cotización BCV en tiempo real. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "Payment methods (legacy)",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/billing/legacy-payment-methods",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "billing", "legacy-payment-methods"]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Lista de métodos de pago disponibles (catálogo estático legacy). Preferir `/billing/processors` para la configuración dinámica. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "Payment methods by country",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/billing/payment-methods",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "billing", "payment-methods"]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Lista métodos de pago disponibles filtrados por el país del usuario. Auth: JWT en cookie + CSRF."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Payments",
+          "item": [
+            {
+              "name": "List payments",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/payments",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "payments"]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Lista los pagos confirmados del usuario. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "Payment receipt",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/payments/{{payment_id}}/receipt",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "payments", "{{payment_id}}", "receipt"]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Descarga el comprobante de un pago confirmado. Auth: JWT en cookie + CSRF."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Notifications",
+          "item": [
+            {
+              "name": "List notifications",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/notifications",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "notifications"]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Lista las notificaciones del usuario. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "Unread count",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/notifications/unread-count",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "notifications", "unread-count"]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Retorna el conteo de notificaciones no leídas. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "Mark all read",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/notifications/read-all",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "notifications", "read-all"]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Marca todas las notificaciones como leídas. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "Mark one read",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/notifications/{{notification_id}}/read",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "notifications", "{{notification_id}}", "read"]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Marca una notificación específica como leída. Auth: JWT en cookie + CSRF."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Support",
+          "item": [
+            {
+              "name": "Submit ticket",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/support",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "support"]
+                },
+                "header": [
+                  { "key": "Content-Type",       "value": "application/json" },
+                  { "key": "Cookie",             "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",   "value": "cotizave" },
+                  { "key": "X-CSRF-Token",       "value": "{{csrf_token}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"subject\": \"Problema con mi API key\",\n  \"message\": \"Mi key ctz_live_... dejó de funcionar ayer a las 3pm.\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Crea un ticket de soporte. Notifica al equipo vía Discord. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "List tickets",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/support?page=1&per_page=20",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "support"],
+                  "query": [
+                    { "key": "page",     "value": "1",  "description": "Página (default: 1)" },
+                    { "key": "per_page", "value": "20", "description": "Items por página (default: 50, max: 250)" }
+                  ]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Lista los tickets de soporte del usuario con paginación. Auth: JWT en cookie + CSRF."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Uploads",
+          "item": [
+            {
+              "name": "Upload file",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/upload",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "upload"]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "file",
+                      "type": "file",
+                      "src": [],
+                      "description": "Archivo a subir (max 1 MB). El frontend comprime imágenes antes de subir."
+                    }
+                  ]
+                },
+                "description": "Sube un archivo (máx 1 MB). Usado para comprobantes de pago. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "Get upload",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/uploads/{{upload_id}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "uploads", "{{upload_id}}"]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Sirve un archivo subido por el usuario. Auth: JWT en cookie + CSRF."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consent",
+          "item": [
+            {
+              "name": "Submit consent",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/consent",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "consent"]
+                },
+                "header": [
+                  { "key": "Content-Type",       "value": "application/json" },
+                  { "key": "Cookie",             "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",   "value": "cotizave" },
+                  { "key": "X-CSRF-Token",       "value": "{{csrf_token}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"document\": \"terms\",\n  \"version\": \"2.2\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Registra la re-aceptación de un documento legal (GDPR Art. 7). `document` acepta: `terms`, `privacy`, `cookies`, `disclaimers`, `sla`. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "Consent history",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/consent/history",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "consent", "history"]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Historial de consentimientos del usuario ordenado por fecha DESC. Auth: JWT en cookie + CSRF."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Markup rules",
+          "item": [
+            {
+              "name": "Create markup rule",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/markup-rules",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "markup-rules"]
+                },
+                "header": [
+                  { "key": "Content-Type",       "value": "application/json" },
+                  { "key": "Cookie",             "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",   "value": "cotizave" },
+                  { "key": "X-CSRF-Token",       "value": "{{csrf_token}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tag\": \"mi-app-produccion\",\n  \"type\": \"percentage\",\n  \"value\": 2.5,\n  \"market_filter\": [\"binance\", \"bcv\"],\n  \"min_absolute\": 0.0,\n  \"max_absolute\": 0.0,\n  \"active\": true\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Crea una regla de markup personalizada. `type` acepta `percentage` o `absolute`. El `tag` se usa como parámetro en `GET /v1/fx/rates?markup=<tag>`. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "List markup rules",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/markup-rules",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "markup-rules"]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Lista todas las reglas de markup del usuario. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "Get markup rule",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/markup-rules/{{markup_rule_id}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "markup-rules", "{{markup_rule_id}}"]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Retorna una regla de markup por ID. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "Update markup rule",
+              "request": {
+                "method": "PATCH",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/markup-rules/{{markup_rule_id}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "markup-rules", "{{markup_rule_id}}"]
+                },
+                "header": [
+                  { "key": "Content-Type",       "value": "application/json" },
+                  { "key": "Cookie",             "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",   "value": "cotizave" },
+                  { "key": "X-CSRF-Token",       "value": "{{csrf_token}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"value\": 3.0,\n  \"active\": false\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Actualización parcial de una regla de markup. El `tag` es inmutable. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "Delete markup rule",
+              "request": {
+                "method": "DELETE",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/markup-rules/{{markup_rule_id}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "markup-rules", "{{markup_rule_id}}"]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Elimina una regla de markup. Responde 204 No Content. Auth: JWT en cookie + CSRF."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Other",
+          "item": [
+            {
+              "name": "Overview",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/overview",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "overview"]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Retorna el resumen de uso del usuario: requests del mes, keys activas, plan actual. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "List plans",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/plans",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "plans"]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Lista los planes disponibles con precios y límites. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "Resend verification (JWT)",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/resend-verification",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "resend-verification"]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Re-envía el email de verificación al usuario autenticado. Rate limited. Auth: JWT en cookie + CSRF."
+              }
+            },
+            {
+              "name": "Logout",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/v1/auth/logout",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "auth", "logout"]
+                },
+                "header": [
+                  { "key": "Cookie",            "value": "__Secure-cotizave_session={{jwt}}" },
+                  { "key": "X-Requested-With",  "value": "cotizave" },
+                  { "key": "X-CSRF-Token",      "value": "{{csrf_token}}" }
+                ],
+                "description": "Cierra la sesión: limpia la cookie y revoca todos los JWTs activos del usuario server-side. Auth: JWT en cookie + CSRF."
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. FX (API Key)",
+      "description": "Endpoints del producto FX. Auth: header `X-API-Key: {{api_key}}`.",
+      "item": [
+        {
+          "name": "List rates",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/v1/fx/rates",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "fx", "rates"],
+              "query": [
+                { "key": "markup", "value": "", "description": "Tag de regla de markup a aplicar (plan pago requerido)", "disabled": true }
+              ]
+            },
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "description": "Snapshot completo de cotizaciones USD/VES. Free: BCV + parallel. Planes pagos: además los 7 mercados P2P (binance, bybit, okx, bitget, mexc, bingx, saldo). Auth: X-API-Key."
+          }
+        },
+        {
+          "name": "Get market rate",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/v1/fx/rates/bcv",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "fx", "rates", "bcv"]
+            },
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "description": "Retorna la cotización de un mercado específico. Mercados: `bcv` (BCV oficial), `parallel` (monitor dólar), `binance`, `bybit`, `okx`, `bitget`, `mexc`, `bingx`, `saldo`. Los P2P requieren plan pago. Auth: X-API-Key."
+          }
+        },
+        {
+          "name": "Convert",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/v1/fx/convert?from=USD&to=VES&amount=100",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "fx", "convert"],
+              "query": [
+                { "key": "from",   "value": "USD" },
+                { "key": "to",     "value": "VES" },
+                { "key": "amount", "value": "100" }
+              ]
+            },
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "description": "Convierte un monto entre monedas usando las tasas de cambio actuales. Feature `convert` requerida (plan Starter+). Auth: X-API-Key."
+          }
+        },
+        {
+          "name": "Market history",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/v1/fx/rates/bcv/history?date=2026-05-01",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "fx", "rates", "bcv", "history"],
+              "query": [
+                { "key": "date", "value": "2026-05-01", "description": "Fecha en formato YYYY-MM-DD" }
+              ]
+            },
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "description": "Histórico de tasas de un mercado por fecha. Feature `history_by_date` requerida (plan pago). Auth: X-API-Key."
+          }
+        },
+        {
+          "name": "Spread",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/v1/fx/spread?against=binance&base=bcv",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "fx", "spread"],
+              "query": [
+                { "key": "against", "value": "binance", "description": "Mercado de comparación (ej: binance)" },
+                { "key": "base",    "value": "bcv",     "description": "Mercado base (ej: bcv)" }
+              ]
+            },
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "description": "Calcula el diferencial (spread) entre dos mercados. Feature `spread` requerida (plan pago). Auth: X-API-Key."
+          }
+        },
+        {
+          "name": "Route",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/v1/fx/route",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "fx", "route"]
+            },
+            "header": [
+              { "key": "X-API-Key", "value": "{{api_key}}" }
+            ],
+            "description": "Retorna la mejor ruta de conversión entre mercados. Feature `route` requerida (plan pago). Auth: X-API-Key."
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Admin",
+      "description": "Endpoints de administración. Auth preferida: `X-Service-Key: {{service_key}}`. Alternativa: JWT de admin en cookie (mismos headers que User JWT).\n\nNota: `X-Service-Key` tiene el formato `ctz_svc_...`.",
+      "item": [
+        {
+          "name": "Users",
+          "item": [
+            {
+              "name": "List users",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/users?page=1&limit=20&q=",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "users"],
+                  "query": [
+                    { "key": "page",  "value": "1",  "description": "Página (default: 1)" },
+                    { "key": "limit", "value": "20", "description": "Items por página (max: 100, default: 20)" },
+                    { "key": "q",     "value": "",   "description": "Filtro por email (max 100 chars)" }
+                  ]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Lista usuarios paginados. Soporta búsqueda por email con `?q=`. Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Get user",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/users/{{user_id}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "users", "{{user_id}}"]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Retorna detalle completo de un usuario incluyendo plan, keys activas y fechas. Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Get user feature overrides",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/users/{{user_id}}/features",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "users", "{{user_id}}", "features"]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Retorna las features del usuario: qué otorga su plan y qué overrides manuales tiene. Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Set user feature overrides",
+              "request": {
+                "method": "PUT",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/users/{{user_id}}/features",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "users", "{{user_id}}", "features"]
+                },
+                "header": [
+                  { "key": "Content-Type",  "value": "application/json" },
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"feature_overrides\": {\n    \"webhooks\": true,\n    \"ip_allowlist\": true,\n    \"rates_p2p\": false\n  }\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Establece overrides de features para un usuario. `null` o mapa vacío limpia todos los overrides. Features conocidas: `rates_reference`, `rates_p2p`, `history_by_date`, `convert`, `spread`, `route`, `markup`, `webhooks`, `ip_allowlist`, `scopes`, `websocket`, `custom_domain`. Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Activate plan",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/users/{{user_id}}/activate-plan",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "users", "{{user_id}}", "activate-plan"]
+                },
+                "header": [
+                  { "key": "Content-Type",  "value": "application/json" },
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"plan\": \"pro\",\n  \"days\": 30\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Activa un plan para el usuario por N días (1-366). Planes asignables: `free`, `starter`, `indie`, `pro` (aliases legacy: `basic`, `business`). Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Downgrade to free",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/users/{{user_id}}/downgrade",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "users", "{{user_id}}", "downgrade"]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Degrada al usuario al plan free inmediatamente. Auth: X-Service-Key o JWT admin."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Payments",
+          "item": [
+            {
+              "name": "List payments",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/payments?status=pending&page=1&limit=50",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "payments"],
+                  "query": [
+                    { "key": "status", "value": "pending", "description": "pending | approved | rejected | all" },
+                    { "key": "page",   "value": "1" },
+                    { "key": "limit",  "value": "50", "description": "Max: 200" }
+                  ]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Lista solicitudes de pago paginadas. Default: pending. Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Approve payment",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/payments/{{payment_id}}/approve",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "payments", "{{payment_id}}", "approve"]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Aprueba una solicitud de pago, activa el plan por 30 días y notifica al usuario vía email. Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Reject payment",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/payments/{{payment_id}}/reject",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "payments", "{{payment_id}}", "reject"]
+                },
+                "header": [
+                  { "key": "Content-Type",  "value": "application/json" },
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"El comprobante adjunto no corresponde al monto solicitado.\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Rechaza una solicitud de pago con razón opcional. Notifica al usuario vía email. Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Payment summary",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/payments/summary",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "payments", "summary"]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Resumen agregado de pagos confirmados para la org. Auth: X-Service-Key o JWT admin."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Stats / Audit / Usage",
+          "item": [
+            {
+              "name": "Stats",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/stats",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "stats"]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Métricas de la org: total users, paid users, pending payments, total revenue. Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Audit log",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/audit?actor=&action=&from=2026-05-01T00:00:00Z&to=2026-05-08T23:59:59Z&limit=50&offset=0",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "audit"],
+                  "query": [
+                    { "key": "actor",  "value": "",                       "description": "Filtrar por email del actor" },
+                    { "key": "action", "value": "",                       "description": "Filtrar por acción (payment_approved, payment_rejected, etc.)" },
+                    { "key": "from",   "value": "2026-05-01T00:00:00Z",  "description": "Desde (RFC3339)" },
+                    { "key": "to",     "value": "2026-05-08T23:59:59Z",  "description": "Hasta (RFC3339)" },
+                    { "key": "limit",  "value": "50" },
+                    { "key": "offset", "value": "0" }
+                  ]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Consulta el log de auditoría inmutable. Filtros opcionales por actor, acción y rango de fechas. Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Usage report",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/usage",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "usage"]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Reporte de uso agregado de la plataforma. Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Usage by user",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/usage/users/{{user_id}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "usage", "users", "{{user_id}}"]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Uso detallado de un usuario específico por mes y endpoint. Auth: X-Service-Key o JWT admin."
+              }
+            }
+          ]
+        },
+        {
+          "name": "API Keys (admin)",
+          "item": [
+            {
+              "name": "List all keys",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/keys",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "keys"]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Lista todas las API keys de la plataforma (vista admin). Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Revoke key (admin)",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/keys/{{key_id}}/revoke",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "keys", "{{key_id}}", "revoke"]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Revoca una API key de cualquier usuario (acción admin). Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Arm key capture (admin)",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/keys/{{key_id}}/capture",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "keys", "{{key_id}}", "capture"]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Arma la captura del valor en texto plano de esta key: el próximo request que llegue con ella queda guardado en Redis (TTL 15 min, SetNX). Se usa para obtener el literal que necesita una custom rule de WAF de Cloudflare. Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Get key capture (admin)",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/keys/{{key_id}}/capture",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "keys", "{{key_id}}", "capture"]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Devuelve el valor capturado, si ya entró un request con esa key desde que se armó. Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Clear key capture (admin)",
+              "request": {
+                "method": "DELETE",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/keys/{{key_id}}/capture",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "keys", "{{key_id}}", "capture"]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Desarma la captura y borra el valor capturado, si había alguno. Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Get upload (admin)",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/uploads/{{upload_id}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "uploads", "{{upload_id}}"]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Sirve un archivo subido por cualquier usuario (acceso admin para revisión de comprobantes). Auth: X-Service-Key o JWT admin."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Payment Methods",
+          "item": [
+            {
+              "name": "List methods",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/payment-methods?include_inactive=false",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "payment-methods"],
+                  "query": [
+                    { "key": "include_inactive", "value": "false", "description": "Incluir métodos inactivos" }
+                  ]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Lista todos los métodos de pago configurados (desde DB). Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Get method",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/payment-methods/{{pm_id}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "payment-methods", "{{pm_id}}"]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Retorna detalle de un método de pago. `{{pm_id}}` ejemplo: `ves_transfer`. Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Update method",
+              "request": {
+                "method": "PUT",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/payment-methods/{{pm_id}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "payment-methods", "{{pm_id}}"]
+                },
+                "header": [
+                  { "key": "Content-Type",  "value": "application/json" },
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Transferencia bancaria VES\",\n  \"active\": true,\n  \"surcharge_percent\": 0.0,\n  \"surcharge_note\": \"\",\n  \"eta\": \"1-2 horas\",\n  \"region\": \"ve\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Actualización parcial de un método de pago (nombre, ícono, estado, surcharge, instrucciones, etc.). Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Toggle method",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/payment-methods/{{pm_id}}/toggle",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "payment-methods", "{{pm_id}}", "toggle"]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Activa o desactiva un método de pago (toggle). Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "List country overrides",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/payment-methods/{{pm_id}}/countries",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "payment-methods", "{{pm_id}}", "countries"]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Lista los overrides por país para un método de pago. Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Upsert country override",
+              "request": {
+                "method": "PUT",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/payment-methods/{{pm_id}}/countries/{{country_code}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "payment-methods", "{{pm_id}}", "countries", "{{country_code}}"]
+                },
+                "header": [
+                  { "key": "Content-Type",  "value": "application/json" },
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"enabled\": true\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Crea o actualiza el override de disponibilidad de un método para un país específico. `{{country_code}}` en formato ISO 3166-1 alpha-2. Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Delete country override",
+              "request": {
+                "method": "DELETE",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/payment-methods/{{pm_id}}/countries/{{country_code}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "payment-methods", "{{pm_id}}", "countries", "{{country_code}}"]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Elimina el override de país para un método de pago (vuelve al default global). Auth: X-Service-Key o JWT admin."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Payment Routing",
+          "item": [
+            {
+              "name": "List routings",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/payment-routing",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "payment-routing"]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Lista las reglas de routing de pago por país. Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Get routing",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/payment-routing/{{country_code}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "payment-routing", "{{country_code}}"]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Retorna la configuración de routing para un país. Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Upsert routing",
+              "request": {
+                "method": "PUT",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/payment-routing/{{country_code}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "payment-routing", "{{country_code}}"]
+                },
+                "header": [
+                  { "key": "Content-Type",  "value": "application/json" },
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"preferred_methods\": [\"ves_transfer\", \"binance_pay\"],\n  \"enabled\": true\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Crea o actualiza la regla de routing para un país. Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Toggle routing",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/payment-routing/{{country_code}}/toggle",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "payment-routing", "{{country_code}}", "toggle"]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Activa o desactiva el routing para un país. Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Delete routing",
+              "request": {
+                "method": "DELETE",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/payment-routing/{{country_code}}",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "payment-routing", "{{country_code}}"]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Elimina la regla de routing para un país. Auth: X-Service-Key o JWT admin."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Service Keys",
+          "item": [
+            {
+              "name": "List service keys",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/service-keys?include_revoked=false",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "service-keys"],
+                  "query": [
+                    { "key": "include_revoked", "value": "false", "description": "Incluir claves revocadas" }
+                  ]
+                },
+                "header": [
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "description": "Lista las service keys de la plataforma (sin el plaintext — solo prefix y metadata). Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Create service key",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/service-keys",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "service-keys"]
+                },
+                "header": [
+                  { "key": "Content-Type",  "value": "application/json" },
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Cockpit production\",\n  \"scopes\": [\"admin:*\"],\n  \"expires_at\": \"2027-01-01T00:00:00Z\",\n  \"note\": \"Usada por el panel de administración interno.\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Crea una nueva service key. `scopes` acepta `admin:*` (full) o `admin:read` (lectura). El `plain_key` en la respuesta es la única vez que se muestra. Auth: X-Service-Key o JWT admin."
+              }
+            },
+            {
+              "name": "Revoke service key",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/v1/admin/service-keys/{{service_key_id}}/revoke",
+                  "host": ["{{base_url}}"],
+                  "path": ["v1", "admin", "service-keys", "{{service_key_id}}", "revoke"]
+                },
+                "header": [
+                  { "key": "Content-Type",  "value": "application/json" },
+                  { "key": "X-Service-Key", "value": "{{service_key}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Rotación periódica de credenciales.\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Revoca una service key. `reason` es opcional (max 500 chars). Auth: X-Service-Key o JWT admin."
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Webhooks",
+      "description": "Endpoints de webhooks de procesadores de pago. Sin JWT ni API key. El secret en la URL es verificado con crypto/subtle.ConstantTimeCompare.",
+      "item": [
+        {
+          "name": "Receive payment event",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/v1/webhooks/manual/{{webhook_secret}}",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "webhooks", "manual", "{{webhook_secret}}"]
+            },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"payment_succeeded\",\n  \"provider\": \"manual\",\n  \"external_id\": \"evt_abc123\",\n  \"user_email\": \"user@example.com\",\n  \"plan\": \"pro\",\n  \"amount_usd\": 29.0,\n  \"currency\": \"USD\",\n  \"occurred_at\": \"2026-05-08T12:00:00Z\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Recibe eventos de procesadores de pago. El `:provider` puede ser `manual` u otros procesadores configurados. El `:secret` en la URL es comparado con el secreto configurado en el servidor. Rate limit: 120 req/min por IP. Protección anti-replay: ventana ±5 min + dedup Redis 24h."
+          }
+        }
+      ]
+    }
+  ]
+}
