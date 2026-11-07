@@ -8,9 +8,9 @@
 
 A fast, typed REST API for official (central-bank) and market exchange rates,
 currency conversion, historical series, bank rates and calendars across **Latin
-America, North America and Europe** — behind a single API key. Includes the
-Venezuela **BCV** and parallel dollar, Colombia's **TRM**, and official and market
-rates for Argentina, Brazil, Mexico, Peru, Chile and more.
+America, North America and Europe** — behind a single API key. Includes Colombia's
+**TRM**, official rates for Argentina, Brazil, Mexico, Peru and Chile, and
+Venezuela's **BCV** — across 22 countries.
 
 [![npm](https://img.shields.io/npm/v/@cotizave/sdk?label=%40cotizave%2Fsdk&color=cb3837&logo=npm)](https://www.npmjs.com/package/@cotizave/sdk)
 [![CI](https://github.com/cotizave/cotizave-typescript/actions/workflows/ci.yml/badge.svg)](https://github.com/cotizave/cotizave-typescript/actions/workflows/ci.yml)
@@ -40,10 +40,13 @@ Rates are identified by a stable, canonical id. A few widely-used ones:
 
 | Country | Rate | Rate id |
 | --- | --- | --- |
-| Venezuela | BCV official (USD) | `ve-bcv` |
-| Venezuela | Parallel / "paralelo" (USD) | `ve-paralelo` |
 | Colombia | TRM | `co-trm` |
 | Argentina | Official (USD) | `ar-official` |
+| Brazil | Official (USD) | `br-official` |
+| Mexico | Official (USD) | `mx-official` |
+| Peru | Official (USD) | `pe-official` |
+| Chile | Official (USD) | `cl-official` |
+| Venezuela | BCV official (USD) | `ve-bcv` |
 
 Official and market rates are available across **22 countries** in the Americas and
 Europe. Get the live, complete list from `GET /v2/countries`, and a country's full

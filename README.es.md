@@ -9,8 +9,8 @@
 API REST rápida y tipada para tasas de cambio **oficiales (de bancos centrales) y
 de mercado**, conversión de monedas, series históricas, tasas de bancos y
 calendarios — en **América Latina, Norteamérica y Europa**, con una sola API key.
-Incluye el **dólar BCV** y el **paralelo** de Venezuela, la **TRM** de Colombia, y
-el dólar oficial y de mercado de Argentina, Brasil, México, Perú, Chile y más.
+Incluye la **TRM** de Colombia, el dólar oficial de Argentina, Brasil, México, Perú
+y Chile, y el **dólar BCV** de Venezuela — en 22 países.
 
 [![npm](https://img.shields.io/npm/v/@cotizave/sdk?label=%40cotizave%2Fsdk&color=cb3837&logo=npm)](https://www.npmjs.com/package/@cotizave/sdk)
 [![CI](https://github.com/cotizave/cotizave-typescript/actions/workflows/ci.yml/badge.svg)](https://github.com/cotizave/cotizave-typescript/actions/workflows/ci.yml)
@@ -40,10 +40,13 @@ Cada tasa se identifica con un id canónico estable. Algunas muy usadas:
 
 | País | Tasa | Id |
 | --- | --- | --- |
-| Venezuela | Dólar BCV oficial (USD) | `ve-bcv` |
-| Venezuela | Dólar paralelo (USD) | `ve-paralelo` |
 | Colombia | TRM | `co-trm` |
 | Argentina | Oficial (USD) | `ar-official` |
+| Brasil | Oficial (USD) | `br-official` |
+| México | Oficial (USD) | `mx-official` |
+| Perú | Oficial (USD) | `pe-official` |
+| Chile | Oficial (USD) | `cl-official` |
+| Venezuela | Dólar BCV oficial (USD) | `ve-bcv` |
 
 Hay tasas oficiales y de mercado en **22 países** de América y Europa. La lista
 completa y actualizada sale de `GET /v2/countries`, y el catálogo de un país de
