@@ -97,12 +97,29 @@ trm = client.rates.get("CO", "co-trm")
 conversion = client.convert(from_="USD", to="BRL", amount=100)
 ```
 
+## Inicio rápido — SDK (PHP)
+
+```bash
+composer require cotizave/sdk
+```
+
+```php
+use Cotizave\Cotizave;
+
+$client = new Cotizave();  // lee COTIZAVE_API_KEY del entorno
+
+$rates = $client->rates->list('CO');
+$trm = $client->rates->get('CO', 'co-trm');
+$conversion = $client->convert(['from' => 'USD', 'to' => 'BRL', 'amount' => 100]);
+```
+
 ## Herramientas oficiales
 
 | Herramienta | Descripción | Instalación |
 | --- | --- | --- |
 | [**SDK TypeScript / JavaScript**](https://github.com/cotizave/cotizave-typescript) | Cliente tipado de la API v2. ESM + CommonJS, Node.js 22+. | `npm i @cotizave/sdk` |
 | [**SDK de Python**](https://github.com/cotizave/cotizave-python) | Cliente tipado de la API v2. Python 3.10+. | `pip install cotizave` |
+| [**SDK de PHP**](https://github.com/cotizave/cotizave-php) | Cliente tipado de la API v2. PHP 8.3+, PSR-18. | `composer require cotizave/sdk` |
 | [**Agent Skill**](https://github.com/cotizave/agent-skills) | Enseña a agentes de IA (Claude, Cursor, Codex) a integrar Cotizave correctamente. | `npx skills add cotizave/agent-skills` |
 
 Hay más SDKs en otros lenguajes planeados; esta lista muestra lo disponible hoy.
