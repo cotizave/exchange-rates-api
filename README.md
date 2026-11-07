@@ -81,11 +81,28 @@ const conversion = await client.convert({ from: 'USD', to: 'BRL', amount: 100 })
 
 The SDK runs in plain JavaScript too (ESM and CommonJS) — see [`examples/node.mjs`](./examples/node.mjs).
 
+## Quick start — SDK (Python)
+
+```bash
+pip install cotizave
+```
+
+```python
+from cotizave import Cotizave
+
+client = Cotizave()  # reads COTIZAVE_API_KEY from the environment
+
+rates = client.rates.list("CO")
+trm = client.rates.get("CO", "co-trm")
+conversion = client.convert(from_="USD", to="BRL", amount=100)
+```
+
 ## Official tools
 
 | Tool | Description | Install |
 | --- | --- | --- |
 | [**TypeScript / JavaScript SDK**](https://github.com/cotizave/cotizave-typescript) | Fully-typed client for the API v2. ESM + CommonJS, Node.js 22+. | `npm i @cotizave/sdk` |
+| [**Python SDK**](https://github.com/cotizave/cotizave-python) | Fully-typed client for the API v2. Python 3.10+. | `pip install cotizave` |
 | [**Agent Skill**](https://github.com/cotizave/agent-skills) | Teaches AI coding agents (Claude, Cursor, Codex) to integrate Cotizave correctly. | `npx skills add cotizave/agent-skills` |
 
 Additional language SDKs are planned; this list shows what is available today.
