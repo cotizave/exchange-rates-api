@@ -113,6 +113,27 @@ $trm = $client->rates->get('CO', 'co-trm');
 $conversion = $client->convert(['from' => 'USD', 'to' => 'BRL', 'amount' => 100]);
 ```
 
+## Quick start — SDK (Go)
+
+```bash
+go get github.com/cotizave/cotizave-go
+```
+
+```go
+import (
+	"context"
+
+	"github.com/cotizave/cotizave-go"
+)
+
+client, _ := cotizave.New(cotizave.Options{}) // reads COTIZAVE_API_KEY from the environment
+ctx := context.Background()
+
+rates, _ := client.Rates.List(ctx, "CO", nil)
+trm, _ := client.Rates.Get(ctx, "CO", "co-trm")
+conversion, _ := client.Convert(ctx, cotizave.ConvertOptions{From: "USD", To: "BRL", Amount: 100})
+```
+
 ## Official tools
 
 | Tool | Description | Install |
@@ -120,6 +141,7 @@ $conversion = $client->convert(['from' => 'USD', 'to' => 'BRL', 'amount' => 100]
 | [**TypeScript / JavaScript SDK**](https://github.com/cotizave/cotizave-typescript) | Fully-typed client for the API v2. ESM + CommonJS, Node.js 22+. | `npm i @cotizave/sdk` |
 | [**Python SDK**](https://github.com/cotizave/cotizave-python) | Fully-typed client for the API v2. Python 3.10+. | `pip install cotizave` |
 | [**PHP SDK**](https://github.com/cotizave/cotizave-php) | Fully-typed client for the API v2. PHP 8.3+, PSR-18. | `composer require cotizave/sdk` |
+| [**Go SDK**](https://github.com/cotizave/cotizave-go) | Fully-typed client for the API v2. Go 1.22+, zero dependencies. | `go get github.com/cotizave/cotizave-go` |
 | [**Agent Skill**](https://github.com/cotizave/agent-skills) | Teaches AI coding agents (Claude, Cursor, Codex) to integrate Cotizave correctly. | `npx skills add cotizave/agent-skills` |
 
 Additional language SDKs are planned; this list shows what is available today.
